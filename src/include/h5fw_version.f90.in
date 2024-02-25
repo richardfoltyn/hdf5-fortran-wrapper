@@ -1,0 +1,8 @@
+
+
+public :: H5FW_VERSION, H5FW_VERSION_COMPONENTS
+
+integer, parameter, dimension(${H5FW_VERSION_COUNT}) :: H5FW_VERSION_COMPONENTS = &
+    [${H5FW_VERSION_MAJOR}, ${H5FW_VERSION_MINOR}, ${H5FW_VERSION_PATCH}]
+
+character (*), parameter :: H5FW_VERSION = '${H5FW_VERSION}'
