@@ -1,8 +1,8 @@
 # HDF5 Fortran Wrapper
 
-This small wrapper implements a simpler interface to store and load 
-high-dimensional arrays in Fortran than the low-level API provided
-directly in HDF5.
+This small wrapper implements a simple interface to store and load 
+high-dimensional arrays in Fortran. It is easier to use than the low-level API provided
+by the official [HDF5](https://portal.hdfgroup.org/) library.
 
 ## Examples
 
