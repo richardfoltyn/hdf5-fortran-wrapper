@@ -16,16 +16,16 @@ integer (hid_t) :: loc_id
 integer :: status
 real, dimension(:,:,:), allocatable :: arr
 
-! Routine check data dimensions and allocated array `arr` as needed.
+! Routine checks the data dimensions and allocates array `arr` as needed.
 ! Passing the error flag `status` is optional.
 call hdf5_load_alloc (loc_id, "data_name", arr, status=status)
 
 ! We can also ignore optional datasets that are not present without
-! raising an error
+! raising an error.
 call hdf5_load_alloc (loc_id, "data_name", arr, ignore_missing=.true.)
 
-! Alternatively, we can ignore the auto-allocation feature and pre-allocate
-! the array manually to some known shape
+! Alternatively, ignore the auto-allocation feature and pre-allocate
+! the array manually to some known shape.
 allocate (arr(10,10,10))
 call hdf5_load (loc_id, "data_name", arr)
 ```
@@ -47,8 +47,7 @@ arr = 1
 ! Store array
 call hdf5_store (loc_id, "data_name", arr)
 
-! Optionally, we can use GZIP compression (if HDF5 was compiled with
-! gzip support).
+! Optionally, use GZIP compression (if HDF5 was compiled with gzip support).
 ! Passing the error flag `status` is optional.
 call hdf5_store (loc_id, "data_name", arr, deflate=.true., status=status)
 
