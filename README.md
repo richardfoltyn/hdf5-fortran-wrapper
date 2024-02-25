@@ -6,7 +6,7 @@ directly in HDF5.
 
 ## Examples
 
-### Allocate an array of unknown shape (but known dimensions)
+### Reading arrays of unknown shape (but known dimensions)
 
 ```fortran
 use hdf5_wrapper
