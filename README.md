@@ -66,6 +66,18 @@ cmake --build .
 cmake --install .
 ```
 
+## Usage
+
+To integrate the library in your own CMake project, augment your `CMakeLists.txt`
+as follows:
+```CMake
+# Locale the library. You may need to adapt CMAKE_PREFIX_PATH, depending
+# on where the library was installed.
+find_package(h5fw REQUIRED)
+# link exetable to the wrapper library
+target_link_libraries(${TARGET_NAME} PRIVATE h5fw:h5fw)
+```
+
 ## Author
 
 Richard Foltyn
