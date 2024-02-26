@@ -6,7 +6,7 @@ by the official [HDF5](https://portal.hdfgroup.org/) library.
 
 ## Examples
 
-### Reading arrays of unknown shape (but known dimensions)
+### Reading arrays of unknown shape (but known rank)
 
 ```fortran
 use hdf5_wrapper
