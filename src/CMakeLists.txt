@@ -1,7 +1,10 @@
 
 cmake_minimum_required(VERSION 3.10)
 
-project(hdf5-fortran-wrappers C Fortran)
+project(H5FW 
+    VERSION 0.1.0 
+    LANGUAGES C Fortran
+)
 set(LIBRARY_NAME h5fw)
 
 # make sure that the default is a RELEASE
@@ -10,16 +13,6 @@ if (NOT CMAKE_BUILD_TYPE)
       "Choose the type of build, options are: None Debug Release."
       FORCE)
 endif (NOT CMAKE_BUILD_TYPE)
-
-###############################################################################
-# Version
-set(H5FW_VERSION_COUNT 3)
-set(H5FW_VERSION_MAJOR 0)
-set(H5FW_VERSION_MINOR 1)
-set(H5FW_VERSION_PATCH 0)
-set(H5FW_VERSION
-	"${H5FW_VERSION_MAJOR}.${H5FW_VERSION_MINOR}.${H5FW_VERSION_PATCH}"
-)
 
 ################################################################################
 # HDF5 library
@@ -141,18 +134,18 @@ if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     set(GNU_WARN "-Wall -Wextra -Wimplicit-interface -Wimplicit-procedure \
         -Warray-temporaries -Wrealloc-lhs -pedantic -Wno-compare-reals \
         -Wno-unused-dummy-argument")
-    set(_FFLAGS "${GNU_WARN} -std=f2008 -fimplicit-none")
+    set(_FFLAGS "${GNU_WARN} -std=f2018 -fimplicit-none")
     set(_FFLAGS_DEBUG "-fcheck=all -O0 -ggdb3")
 elseif (CMAKE_Fortran_COMPILER_ID STREQUAL "Intel(LLVM)?")
     if (WIN32)
-        set(_FFLAGS "/warn:all,nounused /standard-semantics /stand:f08 /auto /assume:nostd_mod_proc_name")
+        set(_FFLAGS "/warn:all,nounused /standard-semantics /stand:f18 /auto /assume:nostd_mod_proc_name")
         set(_FFLAGS_DEBUG "/check:all /check:arg_temp_created")
         # Disable seriously annoying warning that ifort is deprecated
         if (CMAKE_Fortran_COMPILER_ID STREQUAL "Intel")
             set(_FFLAGS "${_FFLAGS} /Qdiag-disable:10448")
         endif ()
     else ()
-        set(_FFLAGS "-warn all,nounused -standard-semantics -std08 -auto -assume nostd_mod_proc_name")
+        set(_FFLAGS "-warn all,nounused -standard-semantics -std18 -auto -assume nostd_mod_proc_name")
         set(_FFLAGS_DEBUG "-check all")
         # Disable seriously annoying warning that ifort is deprecated
         if (CMAKE_Fortran_COMPILER_ID STREQUAL "Intel")
@@ -235,18 +228,18 @@ set (SOURCE_FILES
 
 # Update version include file
 configure_file(include/h5fw_version.f90.in
-    ${CMAKE_BINARY_DIR}/include/h5fw_version.f90
+    ${CMAKE_BINARY_DIR}/h5fw_version.f90
 )
 
 add_library(${LIBRARY_NAME} ${SOURCE_FILES})
 
 target_include_directories(${LIBRARY_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_BINARY_DIR}/include
+    ${CMAKE_BINARY_DIR}
     ${HDF5_INCLUDE_DIRS}
 )
 
-target_link_libraries(${LIBRARY_NAME} PRIVATE
+target_link_libraries(${LIBRARY_NAME} PUBLIC
     ${HDF5_LIBRARIES}
 )
 
@@ -318,11 +311,6 @@ install(TARGETS ${LIBRARY_NAME}
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/${H5FW_INSTALL_DIR}"
     INCLUDES DESTINATION
         "${CMAKE_INSTALL_INCLUDEDIR}/${H5FW_INSTALL_DIR}"
-)
-
-export(EXPORT ${LIBRARY_NAME}_targets
-    FILE "${CMAKE_CURRENT_BINARY_DIR}/${TARGETS_FILE}"
-    NAMESPACE ${H5FW_INSTALL_NAMESPACE}::
 )
 
 install(EXPORT ${LIBRARY_NAME}_targets
