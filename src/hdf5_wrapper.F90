@@ -1290,7 +1290,9 @@ subroutine hdf5_load_1d_logical (loc_id, name, val, ignore_missing, status)
     call hdf5_load (loc_id, name, ival, ignore_missing, lstatus)
 
     if (lstatus == STATUS_OK .and. ival(1) /= -1) then
-        forall (i=1:n) val(i) = (ival(i) /= 0)
+        do i = 1, n
+            val(i) = (ival(i) /= 0)
+        end do
     end if
 
     deallocate (ival)
