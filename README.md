@@ -69,13 +69,22 @@ cmake --install .
 ## Usage
 
 To integrate the library in your own CMake project, augment your `CMakeLists.txt`
-as follows:
+as follows. See also the minimal client in `tests/client.f90`.
 ```CMake
+cmake_minimum_required(VERSION 3.12)
+
+project(H5FW_client LANGUAGES C Fortran)
+
+# HDF5 library required for linking
+find_package(HDF5 REQUIRED COMPONENTS Fortran)
+
 # Locale the library. You may need to adapt CMAKE_PREFIX_PATH, depending
 # on where the library was installed.
 find_package(h5fw REQUIRED)
-# link exetable to the wrapper library
-target_link_libraries(${TARGET_NAME} PRIVATE h5fw:h5fw)
+
+add_executable(client client.f90)
+target_link_libraries(client h5fw::h5fw)
+
 ```
 
 ## Author
