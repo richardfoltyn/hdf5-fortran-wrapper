@@ -81,6 +81,37 @@ set(H5FW_INSTALL_DIR "${INSTALL_DIR}")
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
 
+################################################################################
+# Universal compiler FLAGS for all targets
+
+unset(_FFLAGS)
+unset(_FFLAGS_DEBUG)
+
+if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" OR MINGW)
+    set(_FFLAGS "-std=f2018 -frecursive -fimplicit-none")
+    set(_FFLAGS_DEBUG "-fcheck=all")
+elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel(LLVM)?")
+    if (WIN32)
+        set(_FFLAGS "/auto /assume:recursion /stand:f18")
+        set(_FFLAGS_DEBUG "/check:all")
+        # Disable seriously annoying warning that ifort is deprecated
+        if (CMAKE_Fortran_COMPILER_ID STREQUAL "Intel")
+            set(_FFLAGS "${_FFLAGS} /Qdiag-disable:10448")
+        endif ()
+    else ()
+        set(_FFLAGS "-auto -assume recursion -std18")
+        set(_FFLAGS_DEBUG "-check all")
+        # Disable seriously annoying warning that ifort is deprecated
+        if (CMAKE_Fortran_COMPILER_ID STREQUAL "Intel")
+            set(_FFLAGS "${_FFLAGS} -diag-disable=10448")
+        endif ()
+    endif (WIN32)
+endif ()
+
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${_FFLAGS}")
+set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${_FFLAGS_DEBUG}")
+
+
 
 ################################################################################
 # Add targets in src/
