@@ -65,15 +65,15 @@ string(REGEX REPLACE "(^[0-9]+).*" "\\1" Fortran_COMPILER_VERSION_MAJOR
 set(Fortran_COMPILER_SUFFIX "${Fortran_COMPILER_ID}-${Fortran_COMPILER_VERSION_MAJOR}")
 
 # Installation directory within <prefix>/lib, <prefix>/include, etc.
-# If not defined by -DINSTALL_DIR by the user, create
+# If not defined by -DINSTALL_DIR_NAME by the user, create
 # version- and compiler-specific directory name.
-if (NOT DEFINED INSTALL_DIR)
+if (NOT DEFINED INSTALL_DIR_NAME)
     set(_version ${H5FW_VERSION_MAJOR}.${H5FW_VERSION_MINOR})
-    set(INSTALL_DIR
+    set(INSTALL_DIR_NAME
         "${LIBRARY_NAME}-${_version}-${Fortran_COMPILER_SUFFIX}"
     )
 endif()
-set(H5FW_INSTALL_DIR "${INSTALL_DIR}")
+set(H5FW_INSTALL_DIR "${INSTALL_DIR_NAME}")
 
 
 ################################################################################
