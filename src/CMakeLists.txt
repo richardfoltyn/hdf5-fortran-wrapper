@@ -36,7 +36,7 @@ target_include_directories(${LIBRARY_NAME} PRIVATE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${H5FW_INSTALL_DIR}>
 )
 
-target_link_libraries(${LIBRARY_NAME} PUBLIC
+target_link_libraries(${LIBRARY_NAME} PRIVATE
     hdf5::hdf5_fortran
 )
 
