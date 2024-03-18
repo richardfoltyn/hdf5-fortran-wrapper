@@ -207,6 +207,12 @@ module hdf5_wrapper
                 hdf5_load_alloc_6d_logical
     end interface
 
+    interface hdf5_load_alloc
+        procedure hdf5_load_alloc_7d_int8, hdf5_load_alloc_7d_int32, &
+                hdf5_load_alloc_7d_real32, hdf5_load_alloc_7d_real64, &
+                hdf5_load_alloc_7d_logical
+    end interface
+
     ! --------------------------------------------------------------------------
     ! Interfaces for HDF5_ALLOC
 
@@ -238,6 +244,11 @@ module hdf5_wrapper
     interface hdf5_alloc
         procedure hdf5_alloc_6d_int8, hdf5_alloc_6d_int32, hdf5_alloc_6d_real32, &
                 hdf5_alloc_6d_real64
+    end interface
+
+    interface hdf5_alloc
+        procedure hdf5_alloc_7d_int8, hdf5_alloc_7d_int32, hdf5_alloc_7d_real32, &
+                hdf5_alloc_7d_real64
     end interface
 
     ! --------------------------------------------------------------------------
@@ -2043,6 +2054,79 @@ subroutine hdf5_load_alloc_6d_logical (loc_id, name, val, ignore_missing, status
 
 end subroutine
 
+
+! ------------------------------------------------------------------------------
+! HDF5_LOAD_ALLOC for 7d-arrays
+
+subroutine hdf5_load_alloc_7d_real32 (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: PREC = real32
+    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), parameter :: val_kind = 1
+    integer, parameter :: NDIM = 7
+
+#include "hdf5_load_alloc_array_impl.f90"
+end subroutine
+
+subroutine hdf5_load_alloc_7d_real64 (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: PREC = real64
+    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), parameter :: val_kind = 1
+    integer, parameter :: NDIM = 7
+
+#include "hdf5_load_alloc_array_impl.f90"
+end subroutine
+
+subroutine hdf5_load_alloc_7d_int8 (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: INTSIZE = int8
+    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), parameter :: val_kind = 1
+    integer, parameter :: NDIM = 7
+
+#include "hdf5_load_alloc_array_impl.f90"
+end subroutine
+
+subroutine hdf5_load_alloc_7d_int32 (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: INTSIZE = int32
+    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), parameter :: val_kind = 1
+    integer, parameter :: NDIM = 7
+
+#include "hdf5_load_alloc_array_impl.f90"
+end subroutine
+
+subroutine hdf5_load_alloc_7d_logical (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: INTSIZE = int8
+    integer, parameter :: NDIM = 7
+    logical, intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+
+    integer (hid_t), intent(in) :: loc_id
+    character (*), intent(in) :: name
+    logical, intent(in), optional :: ignore_missing
+    integer, intent(out), optional :: status
+
+    integer :: lstatus
+    integer, dimension(NDIM) :: shp, ishp
+    integer (INTSIZE), dimension(:,:,:,:,:,:,:), allocatable :: ival
+
+    call hdf5_load_alloc (loc_id, name, ival, ignore_missing, lstatus)
+    if (lstatus == STATUS_OK .and. allocated(ival)) then
+        if (allocated(val)) then
+            shp = shape(val)
+            ishp = shape(ival)
+            if (all(shp == ishp)) deallocate (val)
+        end if
+
+        if (.not. allocated(val)) then
+            allocate (val(size(ival,1), size(ival,2), size(ival,3), size(ival,4), size(ival,5), size(ival,6), size(ival,7)))
+            val(:,:,:,:,:,:,:) = (ival == 1)
+        end if
+    end if
+
+    if (present(status)) status = lstatus
+
+end subroutine
+
+
 ! ------------------------------------------------------------------------------
 ! HDF5_ALLOC for 1d-arrays
 
@@ -2255,6 +2339,43 @@ subroutine hdf5_alloc_6d_int32 (loc_id, name, val, ignore_missing, status)
 
 #include "hdf5_alloc_impl_6d.f90"
 end subroutine
+
+
+! ------------------------------------------------------------------------------
+! HDF5_ALLOC for 7d-arrays
+
+subroutine hdf5_alloc_7d_real32 (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: PREC = real32
+    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer, parameter :: NDIM = 7
+
+#include "hdf5_alloc_impl_7d.f90"
+end subroutine
+
+subroutine hdf5_alloc_7d_real64 (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: PREC = real64
+    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer, parameter :: NDIM = 7
+
+#include "hdf5_alloc_impl_7d.f90"
+end subroutine
+
+subroutine hdf5_alloc_7d_int8 (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: INTSIZE = int8
+    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer, parameter :: NDIM = 7
+
+#include "hdf5_alloc_impl_7d.f90"
+end subroutine
+
+subroutine hdf5_alloc_7d_int32 (loc_id, name, val, ignore_missing, status)
+    integer, parameter :: INTSIZE = int32
+    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer, parameter :: NDIM = 7
+
+#include "hdf5_alloc_impl_7d.f90"
+end subroutine
+
 
 ! ------------------------------------------------------------------------------
 subroutine hdf5_deflate_info (has_encode, has_decode)
