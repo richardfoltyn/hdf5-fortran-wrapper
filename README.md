@@ -55,6 +55,16 @@ call hdf5_store (loc_id, "data_name", arr, deflate=.true., status=status)
 
 ## Installation
 
+### Dependencies
+
+The library requires the HDF5 development package(s) to be installed. 
+For example, on Fedora this these can be obtained with
+```bash
+sudo dnf install hdf5-devel
+```
+
+### Build instructions
+
 The library is built using [CMake](https://cmake.org/) using
 something along the lines of
 ```bash
