@@ -58,23 +58,41 @@ call hdf5_store (loc_id, "data_name", arr, deflate=.true., status=status)
 ### Dependencies
 
 The library requires the HDF5 development package(s) to be installed. 
-For example, on Fedora this these can be obtained with
+For example, on Fedora these can be obtained with
 ```bash
-sudo dnf install hdf5-devel
+sudo dnf install hdf5 hdf5-devel
 ```
 
 ### Build instructions
 
-The library is built using [CMake](https://cmake.org/) using
-something along the lines of
+Build the repository root out of source with GCC 16 and the system HDF5
+(1.14.6 on Fedora). Set the GCC major version in your shell. On Fedora,
+this sets the build path; the default compiler must be the matching version.
+
+Bash:
 ```bash
-cd /path/to/hdf5-fortran/wrapper
-mkdir build
-cd build
-cmake ../src
-cmake --build .
-cmake --install .
+GCC_VERSION=16
 ```
+
+Fish:
+```fish
+set GCC_VERSION 16
+```
+
+The remaining commands work in both shells:
+
+```sh
+cmake -S "$HOME/repos/hdf5-fortran-wrapper" \
+    -B "$HOME/build/gnu/$GCC_VERSION/hdf5-fortran-wrapper" \
+    -DCMAKE_C_COMPILER=gcc -DCMAKE_Fortran_COMPILER=gfortran \
+    -DCMAKE_INSTALL_PREFIX="$HOME/.local" -DHDF5_ROOT=/usr
+cmake --build "$HOME/build/gnu/$GCC_VERSION/hdf5-fortran-wrapper" --parallel 8
+cmake --install "$HOME/build/gnu/$GCC_VERSION/hdf5-fortran-wrapper"
+```
+
+On Fedora the GNU-16 CMake package is installed under
+`~/.local/lib64/h5fw-0.1-gnu-16/cmake/` and modules under
+`~/.local/include/h5fw-0.1-gnu-16/`.
 
 ## Usage
 
@@ -88,8 +106,8 @@ project(H5FW_client LANGUAGES C Fortran)
 # HDF5 library required for linking
 find_package(HDF5 REQUIRED COMPONENTS Fortran)
 
-# Locale the library. You may need to adapt CMAKE_PREFIX_PATH, depending
-# on where the library was installed.
+# Locate the library. Configure with -DCMAKE_PREFIX_PATH="$HOME/.local"
+# if it was installed under the prefix shown above.
 find_package(h5fw REQUIRED)
 
 add_executable(client client.f90)
