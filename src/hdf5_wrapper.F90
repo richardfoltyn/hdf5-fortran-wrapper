@@ -749,7 +749,7 @@ subroutine hdf5_store_1d_char (loc_id, name, val, deflate, status)
     call hdf5_store (loc_id, name, ptr, shp, dtype_file_id, &
         dtype_native_id, ssize, deflate, lstatus)
 
-90  call H5Tclose_f(dtype_file_id, status_ignore)
+90  call h5tclose_f(dtype_file_id, status_ignore)
 100 continue
     if (present(status)) status = lstatus
 end subroutine

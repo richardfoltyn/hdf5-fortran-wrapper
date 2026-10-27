@@ -18,7 +18,7 @@ shp = shape(val)
 
 call hdf5_load (loc_id, name, ptr, shp, dtype_native_id, ignore_missing, lstatus)
 
-call H5Tclose_f (dtype_native_id, status_ignore)
+call h5tclose_f (dtype_native_id, status_ignore)
 
 100 continue
     if (present(status)) status = lstatus
