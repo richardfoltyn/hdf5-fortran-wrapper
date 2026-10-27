@@ -11,7 +11,7 @@ integer, intent(out), optional :: status
 ! C_LOC
 target :: val
 
-integer :: lstatus
+integer :: lstatus, status_ignore
 type (c_ptr) :: ptr
 integer, parameter :: DIRECTION = 1
 ! Degenerate shape array for scalar data
@@ -27,6 +27,8 @@ ptr = c_loc(val)
 
 call hdf5_store (loc_id, name, ptr, SHAPE_SCALAR, dtype_file_id, &
     dtype_native_id, status=lstatus)
+
+call h5tclose_f (dtype_native_id, status_ignore)
 
 100 continue
     if (present(status)) status = lstatus

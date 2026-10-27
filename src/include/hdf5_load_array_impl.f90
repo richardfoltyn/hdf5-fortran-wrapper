@@ -6,7 +6,7 @@ integer, intent(out), optional :: status
 integer, dimension(NDIM) :: shp
 integer, parameter :: DIRECTION = 1
 type (c_ptr) :: ptr
-integer :: lstatus
+integer :: lstatus, status_ignore
 integer (hid_t) :: dtype_file_id, dtype_native_id
 
 call hdf5_file_dtype (val_kind, dtype_file_id)
@@ -17,6 +17,8 @@ ptr = c_loc(val)
 shp = shape(val)
 
 call hdf5_load (loc_id, name, ptr, shp, dtype_native_id, ignore_missing, lstatus)
+
+call h5tclose_f (dtype_native_id, status_ignore)
 
 100 continue
     if (present(status)) status = lstatus

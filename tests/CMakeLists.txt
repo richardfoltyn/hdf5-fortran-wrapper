@@ -22,7 +22,8 @@ target_include_directories(test_support PUBLIC
 )
 target_link_libraries(test_support PUBLIC h5fw hdf5::hdf5_fortran)
 
-foreach (test_name IN ITEMS scalar_roundtrip array_roundtrip alloc_roundtrip)
+foreach (test_name IN ITEMS scalar_roundtrip array_roundtrip alloc_roundtrip
+        dimensions cleanup)
     add_executable(test_${test_name} test_${test_name}.f90)
     target_link_libraries(test_${test_name} PRIVATE test_support)
     set(test_directory "${CMAKE_CURRENT_BINARY_DIR}/fixtures/${test_name}")

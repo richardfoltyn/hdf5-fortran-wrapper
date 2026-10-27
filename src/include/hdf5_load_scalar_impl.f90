@@ -9,7 +9,7 @@ target :: val
 
 integer, parameter :: DIRECTION = 1
 type (c_ptr) :: ptr
-integer :: lstatus
+integer :: lstatus, status_ignore
 integer (hid_t) :: dtype_file_id, dtype_native_id
 ! Degenerate shape array for scalar data
 integer, parameter, dimension(0) :: SHAPE_SCALAR = [ integer :: ]
@@ -22,6 +22,8 @@ ptr = c_loc(val)
 
 call hdf5_load (loc_id, name, ptr, SHAPE_SCALAR, dtype_native_id, &
     ignore_missing, lstatus)
+
+call h5tclose_f (dtype_native_id, status_ignore)
 
 100 continue
     if (present(status)) status = lstatus
