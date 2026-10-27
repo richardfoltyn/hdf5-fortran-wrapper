@@ -117,11 +117,6 @@ run in parallel. Successful tests delete their HDF5 files; failed tests retain
 them for inspection and replace them on the next run. Failed assertions print a
 diagnostic and exit with a nonzero status.
 
-Bug-specific regression cases for fallback preservation and error handling will
-accompany the fixes in issues [#2](https://github.com/richardfoltyn/hdf5-fortran-wrapper/issues/2),
-[#4](https://github.com/richardfoltyn/hdf5-fortran-wrapper/issues/4), and
-[#5](https://github.com/richardfoltyn/hdf5-fortran-wrapper/issues/5).
-
 The standalone `cmake -S tests` build remains an installed-package client example;
 use the repository root to configure the regression suite.
 
