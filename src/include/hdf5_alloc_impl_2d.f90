@@ -5,7 +5,7 @@ integer, intent(out), optional :: status
 
 integer, dimension(NDIM) :: shp, shp_val
 integer :: ndim_present
-integer :: lstatus, status_ignore
+integer :: lstatus
 logical :: exists, lignore_missing
 
 lstatus = STATUS_OK
@@ -13,7 +13,8 @@ lstatus = STATUS_OK
 lignore_missing = .false.
 if (present(ignore_missing)) lignore_missing = ignore_missing
 
-call h5lexists_f (loc_id, name, exists, status_ignore)
+call h5lexists_f (loc_id, name, exists, lstatus)
+if (lstatus /= STATUS_OK) goto 100
 if (exists) then
     ! HDF5_DIMS will return with error status code if SHP is not large
     ! enough to store array shape
