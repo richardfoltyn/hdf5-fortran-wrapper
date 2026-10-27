@@ -94,6 +94,37 @@ On Fedora the GNU-16 CMake package is installed under
 `~/.local/lib64/h5fw-0.1-gnu-16/cmake/` and modules under
 `~/.local/include/h5fw-0.1-gnu-16/`.
 
+## Regression tests
+
+The root CMake build enables CTest tests by default (`BUILD_TESTING=ON`).
+Run a diagnostic build with GNU Fortran:
+
+```sh
+cmake -S . -B build/debug -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build build/debug --parallel
+ctest --test-dir build/debug --output-on-failure --parallel 3
+```
+
+The Debug configuration enables GNU Fortran runtime checks (`-fcheck=all`) for
+both the wrapper and tests. To also test optimized code, repeat these commands
+with `build/release` and `-DCMAKE_BUILD_TYPE=Release`. To build only the library,
+configure with `-DBUILD_TESTING=OFF`.
+
+The tests round-trip scalar kinds, numeric and logical arrays, query dimensions,
+and load automatically allocated arrays, including repeated loads and rank-seven
+data. Each executable uses its own build-tree fixture directory, so tests can
+run in parallel. Successful tests delete their HDF5 files; failed tests retain
+them for inspection and replace them on the next run. Failed assertions print a
+diagnostic and exit with a nonzero status.
+
+Bug-specific regression cases for fallback preservation and error handling will
+accompany the fixes in issues [#2](https://github.com/richardfoltyn/hdf5-fortran-wrapper/issues/2),
+[#4](https://github.com/richardfoltyn/hdf5-fortran-wrapper/issues/4), and
+[#5](https://github.com/richardfoltyn/hdf5-fortran-wrapper/issues/5).
+
+The standalone `cmake -S tests` build remains an installed-package client example;
+use the repository root to configure the regression suite.
+
 ## Usage
 
 To integrate the library in your own CMake project, augment your `CMakeLists.txt`
