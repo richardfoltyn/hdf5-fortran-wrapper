@@ -520,7 +520,8 @@ subroutine hdf5_store_cptr (loc_id, name, ptr, dims, dtype_file_id, &
 
     ! Check whether dataset already exists
     exists = .false.
-    call h5lexists_f(loc_id, name, exists, status_ignore)
+    call h5lexists_f (loc_id, name, exists, lstatus)
+    if (lstatus /= STATUS_OK) goto 5
     if (exists) then
         if (ldeflate) then
             call h5dopen_f (loc_id, name, dset_id, lstatus, dprop_id)
@@ -1115,7 +1116,7 @@ subroutine hdf5_load_scalar_bool (loc_id, name, val, ignore_missing, status)
     integer, intent(out), optional :: status
 
     integer (INTSIZE) :: val_int
-    integer :: lstatus, status_ignore
+    integer :: lstatus
     logical :: exists, lignore_missing
 
     lignore_missing = .false.
@@ -1123,7 +1124,8 @@ subroutine hdf5_load_scalar_bool (loc_id, name, val, ignore_missing, status)
 
     lstatus = STATUS_OK
 
-    call h5lexists_f (loc_id, name, exists, status_ignore)
+    call h5lexists_f (loc_id, name, exists, lstatus)
+    if (lstatus /= STATUS_OK) goto 100
 
     if (exists) then
         call hdf5_load (loc_id, name, val_int, ignore_missing, lstatus)
@@ -1135,6 +1137,7 @@ subroutine hdf5_load_scalar_bool (loc_id, name, val, ignore_missing, status)
         if (.not. lignore_missing) lstatus = STATUS_FAILURE
     end if
 
+100 continue
     if (present(status)) status = lstatus
 end subroutine
 
@@ -1172,7 +1175,8 @@ subroutine hdf5_load_cptr (loc_id, name, ptr, dims, dtype_native_id, &
     lstatus = STATUS_OK
 
     ! Check whether dataset exists
-    call h5lexists_f (loc_id, name, exists, status_ignore)
+    call h5lexists_f (loc_id, name, exists, lstatus)
+    if (lstatus /= STATUS_OK) goto 30
     if ((.not. exists) .and. lignore_missing) goto 30
 
     call h5dopen_f (loc_id, name, dset_id, lstatus)
