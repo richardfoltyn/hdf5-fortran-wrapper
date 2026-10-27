@@ -94,6 +94,27 @@ On Fedora the GNU-16 CMake package is installed under
 `~/.local/lib64/h5fw-0.1-gnu-16/cmake/` and modules under
 `~/.local/include/h5fw-0.1-gnu-16/`.
 
+## Usage
+
+To integrate the library in your own CMake project, augment your `CMakeLists.txt`
+as follows. See also the minimal client in `tests/client.f90`.
+```CMake
+cmake_minimum_required(VERSION 3.12)
+
+project(H5FW_client LANGUAGES C Fortran)
+
+# HDF5 library required for linking
+find_package(HDF5 REQUIRED COMPONENTS Fortran)
+
+# Locate the library. Configure with -DCMAKE_PREFIX_PATH="$HOME/.local"
+# if it was installed under the prefix shown above.
+find_package(h5fw REQUIRED)
+
+add_executable(client client.f90)
+target_link_libraries(client h5fw::h5fw)
+
+```
+
 ## Regression tests
 
 The root CMake build enables CTest tests by default (`BUILD_TESTING=ON`).
@@ -119,27 +140,6 @@ diagnostic and exit with a nonzero status.
 
 The standalone `cmake -S tests` build remains an installed-package client example;
 use the repository root to configure the regression suite.
-
-## Usage
-
-To integrate the library in your own CMake project, augment your `CMakeLists.txt`
-as follows. See also the minimal client in `tests/client.f90`.
-```CMake
-cmake_minimum_required(VERSION 3.12)
-
-project(H5FW_client LANGUAGES C Fortran)
-
-# HDF5 library required for linking
-find_package(HDF5 REQUIRED COMPONENTS Fortran)
-
-# Locate the library. Configure with -DCMAKE_PREFIX_PATH="$HOME/.local"
-# if it was installed under the prefix shown above.
-find_package(h5fw REQUIRED)
-
-add_executable(client client.f90)
-target_link_libraries(client h5fw::h5fw)
-
-```
 
 ## Author
 
