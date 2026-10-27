@@ -1,0 +1,157 @@
+program test_fallback
+    !* Test fallback preservation and successful replacement for @TEST_KIND@, rank @TEST_RANK@.
+    use, intrinsic :: iso_fortran_env, only: real32, real64, int8, int32, int64
+    use hdf5, only: hid_t, h5eset_auto_f
+    use hdf5_wrapper
+    use test_support
+    implicit none
+
+    integer (hid_t) :: file_id
+    integer :: status
+    @TEST_TYPE@, parameter :: FALLBACK = @FALLBACK@, EXPECTED = @EXPECTED@
+    @TEST_TYPE@ :: source@DIMS@, value@DIMS@
+#if @TEST_RANK@ > 0
+    @TEST_TYPE@ :: empty(@EMPTY_SHAPE@), backing(@BACKING_SHAPE@)
+#endif
+#if @HAVE_ALLOC@
+    @TEST_TYPE@, allocatable :: arr(@COLONS@)
+#endif
+
+    call create_fixture (file_id)
+    call h5eset_auto_f (0, status)
+    call check (status == 0, 'disable expected HDF5 error printing')
+    source = EXPECTED
+#if @IS_LOGICAL@ && @TEST_RANK@ > 0
+    ! Logical storage is exposed only for some ranks; use its 0/1 representation.
+    call hdf5_store (file_id, 'present', merge(1_int8, 0_int8, source), status=status)
+#else
+    call hdf5_store (file_id, 'present', source, status=status)
+#endif
+    call check (status == STATUS_OK, 'store present dataset')
+#if @TEST_RANK@ > 0
+#if @IS_LOGICAL@
+    call hdf5_store (file_id, 'empty', merge(1_int8, 0_int8, empty), status=status)
+#else
+    call hdf5_store (file_id, 'empty', empty, status=status)
+#endif
+    call check (status == STATUS_OK, 'store empty dataset')
+#endif
+    call reopen_fixture (file_id)
+
+#if @HAVE_FIXED@
+    value = FALLBACK
+    call hdf5_load (file_id, 'missing', value, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'ignored absence succeeds')
+#if @TEST_RANK@ == 0
+    call check (value @EQUAL@ FALLBACK, 'scalar fallback preserved')
+#else
+    call check (all(value @EQUAL@ FALLBACK), 'array fallback preserved')
+#endif
+    call hdf5_load (file_id, 'missing', value, ignore_missing=.true.)
+#if @TEST_RANK@ == 0
+    call check (value @EQUAL@ FALLBACK, 'scalar fallback preserved without status')
+#else
+    call check (all(value @EQUAL@ FALLBACK), 'array fallback preserved without status')
+#endif
+    call hdf5_load (file_id, 'missing', value, ignore_missing=.false., status=status)
+    call check (status == STATUS_FAILURE, 'explicit required dataset fails')
+    call hdf5_load (file_id, 'missing', value, status=status)
+    call check (status == STATUS_FAILURE, 'default required dataset fails')
+    value = FALLBACK
+    call hdf5_load (file_id, 'present', value, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'present dataset read succeeds')
+#if @TEST_RANK@ == 0
+    call check (value @EQUAL@ EXPECTED, 'scalar fallback replaced')
+#else
+    call check (all(value @EQUAL@ EXPECTED), 'array fallback replaced')
+#endif
+    call hdf5_load (file_id, 'missing', value, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'ignored absence after successful read')
+#if @TEST_RANK@ == 0
+    call check (value @EQUAL@ EXPECTED, 'loaded scalar preserved')
+#else
+    call check (all(value @EQUAL@ EXPECTED), 'loaded array preserved')
+
+    backing = FALLBACK
+    call hdf5_load (file_id, 'missing', backing(@SECTION@), ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'ignored absence into strided section')
+    call check (all(backing @EQUAL@ FALLBACK), 'strided section and neighbors preserved')
+    call hdf5_load (file_id, 'present', backing(@SECTION@), status=status)
+    call check (status == STATUS_OK, 'read into strided section')
+    call check (all(backing(@SECTION@) @EQUAL@ EXPECTED), 'strided section replaced')
+    call check (all(backing(@OTHER_SECTION@) @EQUAL@ FALLBACK), 'section neighbors unchanged')
+
+    call hdf5_load (file_id, 'missing', empty, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'ignored absence with empty destination')
+    call hdf5_load (file_id, 'empty', empty, status=status)
+    call check (status == STATUS_OK, 'empty dataset read succeeds')
+#endif
+#endif
+
+#if @HAVE_ALLOC@
+    call hdf5_load_alloc (file_id, 'missing', arr, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'ignored absence with unallocated destination')
+    call check (.not. allocated(arr), 'destination remains unallocated')
+
+    allocate (arr(@BOUNDS@))
+    arr = FALLBACK
+    call hdf5_load_alloc (file_id, 'missing', arr, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'ignored absence with allocated destination')
+    call check_array (FALLBACK)
+    call check (all(lbound(arr) == -1), 'fallback lower bounds preserved')
+    call check (all(ubound(arr) == 0), 'fallback upper bounds preserved')
+    call hdf5_load_alloc (file_id, 'missing', arr, ignore_missing=.true.)
+    call check_array (FALLBACK)
+    call check (all(lbound(arr) == -1), 'bounds preserved without status')
+
+    call hdf5_load_alloc (file_id, 'present', arr, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'present dataset reuses allocated destination')
+    call check_array (EXPECTED)
+    call check (all(lbound(arr) == -1), 'same-shape allocation reused')
+    call hdf5_load_alloc (file_id, 'missing', arr, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'ignored absence after allocating read')
+    call check_array (EXPECTED)
+    call check (all(lbound(arr) == -1), 'loaded allocation bounds preserved')
+
+    call hdf5_load_alloc (file_id, 'missing', arr, ignore_missing=.false., status=status)
+    call check (status == STATUS_FAILURE, 'explicit required allocating read fails')
+    call hdf5_load_alloc (file_id, 'missing', arr, status=status)
+    call check (status == STATUS_FAILURE, 'default required allocating read fails')
+    if (allocated(arr)) deallocate (arr)
+    allocate (arr(@SMALL_SHAPE@))
+    arr = FALLBACK
+    call hdf5_load_alloc (file_id, 'present', arr, status=status)
+    call check (status == STATUS_OK, 'present dataset resizes allocated destination')
+    call check_array (EXPECTED)
+    deallocate (arr)
+    call hdf5_load_alloc (file_id, 'present', arr, status=status)
+    call check (status == STATUS_OK, 'present dataset allocates fresh destination')
+    call check_array (EXPECTED)
+
+    call hdf5_load_alloc (file_id, 'empty', arr, status=status)
+    call check (status == STATUS_OK, 'empty dataset replaces allocated destination')
+    call check (allocated(arr), 'empty allocation exists')
+    call check (all(shape(arr) == [@EMPTY_SHAPE@]), 'empty allocation shape')
+    call hdf5_load_alloc (file_id, 'missing', arr, ignore_missing=.true., status=status)
+    call check (status == STATUS_OK, 'ignored absence preserves empty allocation')
+    call check (allocated(arr), 'empty allocation remains allocated')
+    call check (all(shape(arr) == [@EMPTY_SHAPE@]), 'empty allocation shape preserved')
+#endif
+
+    call remove_fixture (file_id)
+
+#if @HAVE_ALLOC@
+contains
+
+subroutine check_array (expected_value)
+    !* Check allocation before inspecting its shape or elements.
+    @TEST_TYPE@, intent(in) :: expected_value
+        !* Expected value of every array element.
+
+    call check (allocated(arr), 'destination remains allocated')
+    call check (all(shape(arr) == [@SHAPE@]), 'destination shape')
+    call check (all(arr @EQUAL@ expected_value), 'destination values')
+end subroutine
+#endif
+
+end program
