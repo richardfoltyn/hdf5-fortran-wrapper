@@ -104,6 +104,9 @@ module hdf5_wrapper
     ! --------------------------------------------------------------------------
     ! Interfaces for loading HDF5 datasets
 
+    !> Load a dataset into an existing destination. With ignore_missing=.true.,
+    !! a successfully established absence returns STATUS_OK without changing val.
+    !! Other errors do not guarantee preservation of the destination.
     ! Routines for loading scalars
     interface hdf5_load
         procedure hdf5_load_scalar_real64, hdf5_load_scalar_real32, &
@@ -171,6 +174,9 @@ module hdf5_wrapper
     ! --------------------------------------------------------------------------
     ! Interfaces for HDF5_LOAD_ALLOC
 
+    !> Load and allocate as needed. An ignored absent dataset preserves values,
+    !! allocation state, shape, and bounds; an unallocated destination stays so.
+    !! Present datasets reuse matching shapes or reallocate on a shape mismatch.
     interface hdf5_load_alloc
         procedure hdf5_load_alloc_1d_int8, hdf5_load_alloc_1d_int32, &
             hdf5_load_alloc_1d_real32, hdf5_load_alloc_1d_real64, &
@@ -1074,35 +1080,35 @@ end subroutine
 
 subroutine hdf5_load_scalar_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out) :: val
+    real (PREC), intent(inout) :: val
 
 #include "hdf5_load_scalar_impl.f90"
 end subroutine
 
 subroutine hdf5_load_scalar_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out) :: val
+    real (PREC), intent(inout) :: val
 
 #include "hdf5_load_scalar_impl.f90"
 end subroutine
 
 subroutine hdf5_load_scalar_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out) :: val
+    integer (INTSIZE), intent(inout) :: val
 
 #include "hdf5_load_scalar_impl.f90"
 end subroutine
 
 subroutine hdf5_load_scalar_int64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int64
-    integer (INTSIZE), intent(out) :: val
+    integer (INTSIZE), intent(inout) :: val
 
 #include "hdf5_load_scalar_impl.f90"
 end subroutine
 
 subroutine hdf5_load_scalar_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out) :: val
+    integer (INTSIZE), intent(inout) :: val
 
 #include "hdf5_load_scalar_impl.f90"
 end subroutine
@@ -1111,7 +1117,7 @@ subroutine hdf5_load_scalar_bool (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
-    logical, intent(out) :: val
+    logical, intent(inout) :: val
     logical, intent(in), optional :: ignore_missing
     integer, intent(out), optional :: status
 
@@ -1236,7 +1242,7 @@ end subroutine
 
 subroutine hdf5_load_1d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1246,7 +1252,7 @@ end subroutine
 
 subroutine hdf5_load_1d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1255,7 +1261,7 @@ end subroutine
 
 subroutine hdf5_load_1d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1264,7 +1270,7 @@ end subroutine
 
 subroutine hdf5_load_1d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1273,7 +1279,7 @@ end subroutine
 
 subroutine hdf5_load_1d_int64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int64
-    integer (INTSIZE), intent(out), dimension(:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1282,7 +1288,7 @@ end subroutine
 
 subroutine hdf5_load_1d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    logical, intent(out), dimension(:) :: val
+    logical, intent(inout), dimension(:) :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -1291,26 +1297,28 @@ subroutine hdf5_load_1d_logical (loc_id, name, val, ignore_missing, status)
 
     integer (INTSIZE), dimension(:), allocatable :: ival
 
-    integer (int64) :: i, n
     integer :: lstatus
+    logical :: exists, lignore_missing
 
-    n = size(val)
+    lignore_missing = .false.
+    if (present(ignore_missing)) lignore_missing = ignore_missing
+    call h5lexists_f (loc_id, name, exists, lstatus)
+    if (lstatus /= STATUS_OK) goto 100
+    if (.not. exists) then
+        if (.not. lignore_missing) lstatus = STATUS_FAILURE
+        goto 100
+    end if
 
-    allocate (ival(n))
-    ! Use this as an indicator whether array was modified (left unmodified
-    ! if missing and IGNORE_MISSING=.TRUE.
-    ival(1) = -1
+    allocate (ival(size(val)))
+    call hdf5_load (loc_id, name, ival, status=lstatus)
 
-    call hdf5_load (loc_id, name, ival, ignore_missing, lstatus)
-
-    if (lstatus == STATUS_OK .and. ival(1) /= -1) then
-        do i = 1, n
-            val(i) = (ival(i) /= 0)
-        end do
+    if (lstatus == STATUS_OK) then
+        val = (ival /= 0)
     end if
 
     deallocate (ival)
 
+100 continue
     if (present(status)) status = lstatus
 end subroutine
 
@@ -1319,7 +1327,7 @@ end subroutine
 
 subroutine hdf5_load_2d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1328,7 +1336,7 @@ end subroutine
 
 subroutine hdf5_load_2d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1337,7 +1345,7 @@ end subroutine
 
 subroutine hdf5_load_2d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1346,7 +1354,7 @@ end subroutine
 
 subroutine hdf5_load_2d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1355,7 +1363,7 @@ end subroutine
 
 subroutine hdf5_load_2d_int64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int64
-    integer (INTSIZE), intent(out), dimension(:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1367,7 +1375,7 @@ end subroutine
 
 subroutine hdf5_load_3d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1376,7 +1384,7 @@ end subroutine
 
 subroutine hdf5_load_3d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1385,7 +1393,7 @@ end subroutine
 
 subroutine hdf5_load_3d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1394,7 +1402,7 @@ end subroutine
 
 subroutine hdf5_load_3d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1403,7 +1411,7 @@ end subroutine
 
 subroutine hdf5_load_3d_int64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int64
-    integer (INTSIZE), intent(out), dimension(:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1412,7 +1420,7 @@ end subroutine
 
 subroutine hdf5_load_3d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    logical, intent(out), dimension(:,:,:), contiguous :: val
+    logical, intent(inout), dimension(:,:,:), contiguous :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -1422,10 +1430,20 @@ subroutine hdf5_load_3d_logical (loc_id, name, val, ignore_missing, status)
     integer (INTSIZE), dimension(:,:,:), allocatable :: ival
 
     integer :: lstatus
+    logical :: exists, lignore_missing
+
+    lignore_missing = .false.
+    if (present(ignore_missing)) lignore_missing = ignore_missing
+    call h5lexists_f (loc_id, name, exists, lstatus)
+    if (lstatus /= STATUS_OK) goto 100
+    if (.not. exists) then
+        if (.not. lignore_missing) lstatus = STATUS_FAILURE
+        goto 100
+    end if
 
     allocate (ival(size(val,1), size(val,2), size(val,3)))
 
-    call hdf5_load (loc_id, name, ival, ignore_missing, lstatus)
+    call hdf5_load (loc_id, name, ival, status=lstatus)
 
     if (lstatus == STATUS_OK) then
         val = (ival /= 0)
@@ -1433,6 +1451,7 @@ subroutine hdf5_load_3d_logical (loc_id, name, val, ignore_missing, status)
 
     deallocate (ival)
 
+100 continue
     if (present(status)) status = lstatus
 end subroutine
 
@@ -1443,7 +1462,7 @@ end subroutine
 
 subroutine hdf5_load_4d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1452,7 +1471,7 @@ end subroutine
 
 subroutine hdf5_load_4d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1461,7 +1480,7 @@ end subroutine
 
 subroutine hdf5_load_4d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1470,7 +1489,7 @@ end subroutine
 
 subroutine hdf5_load_4d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1479,7 +1498,7 @@ end subroutine
 
 subroutine hdf5_load_4d_int64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int64
-    integer (INTSIZE), intent(out), dimension(:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1492,7 +1511,7 @@ end subroutine
 
 subroutine hdf5_load_5d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1501,7 +1520,7 @@ end subroutine
 
 subroutine hdf5_load_5d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1510,7 +1529,7 @@ end subroutine
 
 subroutine hdf5_load_5d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1519,7 +1538,7 @@ end subroutine
 
 subroutine hdf5_load_5d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1528,7 +1547,7 @@ end subroutine
 
 subroutine hdf5_load_5d_int64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int64
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1540,7 +1559,7 @@ end subroutine
 
 subroutine hdf5_load_6d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -1549,7 +1568,7 @@ end subroutine
 
 subroutine hdf5_load_6d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -1558,7 +1577,7 @@ end subroutine
 
 subroutine hdf5_load_6d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -1567,7 +1586,7 @@ end subroutine
 
 subroutine hdf5_load_6d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -1576,7 +1595,7 @@ end subroutine
 
 subroutine hdf5_load_6d_int64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int64
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -1588,7 +1607,7 @@ end subroutine
 
 subroutine hdf5_load_7d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -1597,7 +1616,7 @@ end subroutine
 
 subroutine hdf5_load_7d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), target, contiguous :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:,:), target, contiguous :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -1606,7 +1625,7 @@ end subroutine
 
 subroutine hdf5_load_7d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -1615,7 +1634,7 @@ end subroutine
 
 subroutine hdf5_load_7d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -1624,7 +1643,7 @@ end subroutine
 
 subroutine hdf5_load_7d_int64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int64
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), target, contiguous :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:,:), target, contiguous :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -1637,7 +1656,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_1d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1646,7 +1665,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_1d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1655,7 +1674,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_1d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1664,7 +1683,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_1d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 1
 
@@ -1673,7 +1692,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_1d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    logical, intent(out), dimension(:), allocatable, target :: val
+    logical, intent(inout), dimension(:), allocatable, target :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -1691,8 +1710,8 @@ subroutine hdf5_load_alloc_1d_logical (loc_id, name, val, ignore_missing, status
 
         if (.not. allocated(val)) then
             allocate (val(size(ival)))
-            val(:) = (ival == 1)
         end if
+        val(:) = (ival == 1)
     end if
 
     if (present(status)) status = lstatus
@@ -1706,7 +1725,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_2d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1715,7 +1734,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_2d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1724,7 +1743,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_2d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1733,7 +1752,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_2d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 2
 
@@ -1743,7 +1762,7 @@ end subroutine
 subroutine hdf5_load_alloc_2d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
     integer, parameter :: NDIM = 2
-    logical, intent(out), dimension(:,:), allocatable, target :: val
+    logical, intent(inout), dimension(:,:), allocatable, target :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -1759,13 +1778,13 @@ subroutine hdf5_load_alloc_2d_logical (loc_id, name, val, ignore_missing, status
         if (allocated(val)) then
             shp = shape(val)
             ishp = shape(ival)
-            if (all(shp == ishp)) deallocate (val)
+            if (any(shp /= ishp)) deallocate (val)
         end if
 
         if (.not. allocated(val)) then
             allocate (val(size(ival,1), size(ival,2)))
-            val(:,:) = (ival == 1)
         end if
+        val(:,:) = (ival == 1)
     end if
 
     if (present(status)) status = lstatus
@@ -1777,7 +1796,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_3d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1786,7 +1805,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_3d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1795,7 +1814,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_3d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1804,7 +1823,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_3d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 3
 
@@ -1814,7 +1833,7 @@ end subroutine
 subroutine hdf5_load_alloc_3d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
     integer, parameter :: NDIM = 3
-    logical, intent(out), dimension(:,:,:), allocatable, target :: val
+    logical, intent(inout), dimension(:,:,:), allocatable, target :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -1830,13 +1849,13 @@ subroutine hdf5_load_alloc_3d_logical (loc_id, name, val, ignore_missing, status
         if (allocated(val)) then
             shp = shape(val)
             ishp = shape(ival)
-            if (all(shp == ishp)) deallocate (val)
+            if (any(shp /= ishp)) deallocate (val)
         end if
 
         if (.not. allocated(val)) then
             allocate (val(size(ival,1), size(ival,2), size(ival,3)))
-            val(:,:,:) = (ival == 1)
         end if
+        val(:,:,:) = (ival == 1)
     end if
 
     if (present(status)) status = lstatus
@@ -1848,7 +1867,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_4d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1857,7 +1876,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_4d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1866,7 +1885,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_4d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1875,7 +1894,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_4d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 4
 
@@ -1885,7 +1904,7 @@ end subroutine
 subroutine hdf5_load_alloc_4d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
     integer, parameter :: NDIM = 4
-    logical, intent(out), dimension(:,:,:,:), allocatable, target :: val
+    logical, intent(inout), dimension(:,:,:,:), allocatable, target :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -1901,13 +1920,13 @@ subroutine hdf5_load_alloc_4d_logical (loc_id, name, val, ignore_missing, status
         if (allocated(val)) then
             shp = shape(val)
             ishp = shape(ival)
-            if (all(shp == ishp)) deallocate (val)
+            if (any(shp /= ishp)) deallocate (val)
         end if
 
         if (.not. allocated(val)) then
             allocate (val(size(ival,1), size(ival,2), size(ival,3), size(ival,4)))
-            val(:,:,:,:) = (ival == 1)
         end if
+        val(:,:,:,:) = (ival == 1)
     end if
 
     if (present(status)) status = lstatus
@@ -1919,7 +1938,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_5d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1928,7 +1947,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_5d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1937,7 +1956,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_5d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1946,7 +1965,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_5d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 5
 
@@ -1956,7 +1975,7 @@ end subroutine
 subroutine hdf5_load_alloc_5d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
     integer, parameter :: NDIM = 5
-    logical, intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    logical, intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -1972,13 +1991,13 @@ subroutine hdf5_load_alloc_5d_logical (loc_id, name, val, ignore_missing, status
         if (allocated(val)) then
             shp = shape(val)
             ishp = shape(ival)
-            if (all(shp == ishp)) deallocate (val)
+            if (any(shp /= ishp)) deallocate (val)
         end if
 
         if (.not. allocated(val)) then
             allocate (val(size(ival,1), size(ival,2), size(ival,3), size(ival,4), size(ival,5)))
-            val(:,:,:,:,:) = (ival == 1)
         end if
+        val(:,:,:,:,:) = (ival == 1)
     end if
 
     if (present(status)) status = lstatus
@@ -1991,7 +2010,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_6d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -2000,7 +2019,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_6d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -2009,7 +2028,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_6d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -2018,7 +2037,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_6d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 6
 
@@ -2028,7 +2047,7 @@ end subroutine
 subroutine hdf5_load_alloc_6d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
     integer, parameter :: NDIM = 6
-    logical, intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    logical, intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -2044,13 +2063,13 @@ subroutine hdf5_load_alloc_6d_logical (loc_id, name, val, ignore_missing, status
         if (allocated(val)) then
             shp = shape(val)
             ishp = shape(ival)
-            if (all(shp == ishp)) deallocate (val)
+            if (any(shp /= ishp)) deallocate (val)
         end if
 
         if (.not. allocated(val)) then
             allocate (val(size(ival,1), size(ival,2), size(ival,3), size(ival,4), size(ival,5), size(ival,6)))
-            val(:,:,:,:,:,:) = (ival == 1)
         end if
+        val(:,:,:,:,:,:) = (ival == 1)
     end if
 
     if (present(status)) status = lstatus
@@ -2063,7 +2082,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_7d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -2072,7 +2091,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_7d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
     real (PREC), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -2081,7 +2100,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_7d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -2090,7 +2109,7 @@ end subroutine
 
 subroutine hdf5_load_alloc_7d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
     integer (INTSIZE), parameter :: val_kind = 1
     integer, parameter :: NDIM = 7
 
@@ -2100,7 +2119,7 @@ end subroutine
 subroutine hdf5_load_alloc_7d_logical (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
     integer, parameter :: NDIM = 7
-    logical, intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    logical, intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
 
     integer (hid_t), intent(in) :: loc_id
     character (*), intent(in) :: name
@@ -2116,13 +2135,13 @@ subroutine hdf5_load_alloc_7d_logical (loc_id, name, val, ignore_missing, status
         if (allocated(val)) then
             shp = shape(val)
             ishp = shape(ival)
-            if (all(shp == ishp)) deallocate (val)
+            if (any(shp /= ishp)) deallocate (val)
         end if
 
         if (.not. allocated(val)) then
             allocate (val(size(ival,1), size(ival,2), size(ival,3), size(ival,4), size(ival,5), size(ival,6), size(ival,7)))
-            val(:,:,:,:,:,:,:) = (ival == 1)
         end if
+        val(:,:,:,:,:,:,:) = (ival == 1)
     end if
 
     if (present(status)) status = lstatus
@@ -2135,7 +2154,7 @@ end subroutine
 
 subroutine hdf5_alloc_1d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:), allocatable, target :: val
     integer, parameter :: NDIM = 1
 
 #include "hdf5_alloc_impl_1d.f90"
@@ -2143,7 +2162,7 @@ end subroutine
 
 subroutine hdf5_alloc_1d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:), allocatable, target :: val
     integer, parameter :: NDIM = 1
 
 #include "hdf5_alloc_impl_1d.f90"
@@ -2151,7 +2170,7 @@ end subroutine
 
 subroutine hdf5_alloc_1d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), dimension(:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:), allocatable, target :: val
     integer, parameter :: NDIM = 1
 
 #include "hdf5_alloc_impl_1d.f90"
@@ -2159,7 +2178,7 @@ end subroutine
 
 subroutine hdf5_alloc_1d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:), allocatable, target :: val
     integer, parameter :: NDIM = 1
 
 #include "hdf5_alloc_impl_1d.f90"
@@ -2171,7 +2190,7 @@ end subroutine
 
 subroutine hdf5_alloc_2d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:), allocatable, target :: val
     integer, parameter :: NDIM = 2
 
 #include "hdf5_alloc_impl_2d.f90"
@@ -2179,7 +2198,7 @@ end subroutine
 
 subroutine hdf5_alloc_2d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:), allocatable, target :: val
     integer, parameter :: NDIM = 2
 
 #include "hdf5_alloc_impl_2d.f90"
@@ -2187,7 +2206,7 @@ end subroutine
 
 subroutine hdf5_alloc_2d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:), allocatable, target :: val
     integer, parameter :: NDIM = 2
 
 #include "hdf5_alloc_impl_2d.f90"
@@ -2195,7 +2214,7 @@ end subroutine
 
 subroutine hdf5_alloc_2d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:), allocatable, target :: val
     integer, parameter :: NDIM = 2
 
 #include "hdf5_alloc_impl_2d.f90"
@@ -2206,7 +2225,7 @@ end subroutine
 
 subroutine hdf5_alloc_3d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 3
 
 #include "hdf5_alloc_impl_3d.f90"
@@ -2214,7 +2233,7 @@ end subroutine
 
 subroutine hdf5_alloc_3d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 3
 
 #include "hdf5_alloc_impl_3d.f90"
@@ -2222,7 +2241,7 @@ end subroutine
 
 subroutine hdf5_alloc_3d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 3
 
 #include "hdf5_alloc_impl_3d.f90"
@@ -2230,7 +2249,7 @@ end subroutine
 
 subroutine hdf5_alloc_3d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 3
 
 #include "hdf5_alloc_impl_3d.f90"
@@ -2242,7 +2261,7 @@ end subroutine
 
 subroutine hdf5_alloc_4d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 4
 
 #include "hdf5_alloc_impl_4d.f90"
@@ -2250,7 +2269,7 @@ end subroutine
 
 subroutine hdf5_alloc_4d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 4
 
 #include "hdf5_alloc_impl_4d.f90"
@@ -2258,7 +2277,7 @@ end subroutine
 
 subroutine hdf5_alloc_4d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 4
 
 #include "hdf5_alloc_impl_4d.f90"
@@ -2266,7 +2285,7 @@ end subroutine
 
 subroutine hdf5_alloc_4d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 4
 
 #include "hdf5_alloc_impl_4d.f90"
@@ -2277,7 +2296,7 @@ end subroutine
 
 subroutine hdf5_alloc_5d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 5
 
 #include "hdf5_alloc_impl_5d.f90"
@@ -2285,7 +2304,7 @@ end subroutine
 
 subroutine hdf5_alloc_5d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 5
 
 #include "hdf5_alloc_impl_5d.f90"
@@ -2293,7 +2312,7 @@ end subroutine
 
 subroutine hdf5_alloc_5d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 5
 
 #include "hdf5_alloc_impl_5d.f90"
@@ -2301,7 +2320,7 @@ end subroutine
 
 subroutine hdf5_alloc_5d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 5
 
 #include "hdf5_alloc_impl_5d.f90"
@@ -2313,7 +2332,7 @@ end subroutine
 
 subroutine hdf5_alloc_6d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 6
 
 #include "hdf5_alloc_impl_6d.f90"
@@ -2321,7 +2340,7 @@ end subroutine
 
 subroutine hdf5_alloc_6d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 6
 
 #include "hdf5_alloc_impl_6d.f90"
@@ -2329,7 +2348,7 @@ end subroutine
 
 subroutine hdf5_alloc_6d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 6
 
 #include "hdf5_alloc_impl_6d.f90"
@@ -2337,7 +2356,7 @@ end subroutine
 
 subroutine hdf5_alloc_6d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 6
 
 #include "hdf5_alloc_impl_6d.f90"
@@ -2349,7 +2368,7 @@ end subroutine
 
 subroutine hdf5_alloc_7d_real32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real32
-    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 7
 
 #include "hdf5_alloc_impl_7d.f90"
@@ -2357,7 +2376,7 @@ end subroutine
 
 subroutine hdf5_alloc_7d_real64 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: PREC = real64
-    real (PREC), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    real (PREC), intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 7
 
 #include "hdf5_alloc_impl_7d.f90"
@@ -2365,7 +2384,7 @@ end subroutine
 
 subroutine hdf5_alloc_7d_int8 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int8
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 7
 
 #include "hdf5_alloc_impl_7d.f90"
@@ -2373,7 +2392,7 @@ end subroutine
 
 subroutine hdf5_alloc_7d_int32 (loc_id, name, val, ignore_missing, status)
     integer, parameter :: INTSIZE = int32
-    integer (INTSIZE), intent(out), dimension(:,:,:,:,:,:,:), allocatable, target :: val
+    integer (INTSIZE), intent(inout), dimension(:,:,:,:,:,:,:), allocatable, target :: val
     integer, parameter :: NDIM = 7
 
 #include "hdf5_alloc_impl_7d.f90"
