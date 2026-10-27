@@ -5,7 +5,7 @@ logical, intent(in), optional :: deflate
 integer, intent(out), optional :: status
 
 integer, dimension(NDIM) :: shp
-integer :: lstatus
+integer :: lstatus, status_ignore
 type (c_ptr) :: ptr
 integer, parameter :: DIRECTION = 1
 integer :: ssize
@@ -24,6 +24,8 @@ shp = shape(val)
 
 call hdf5_store (loc_id, name, ptr, shp, dtype_file_id, dtype_native_id, &
     ssize, deflate, lstatus)
+
+call H5Tclose_f (dtype_native_id, status_ignore)
 
 100 continue
     if (present(status)) status = lstatus

@@ -270,15 +270,16 @@ contains
 ! Data dimension query
 
 subroutine hdf5_dims_int64 (loc_id, name, dims, ndims, status)
+    !* Query dimensions; outputs are -1 on failure. Unused DIMS entries remain -1.
     integer, parameter :: INTSIZE = int64
     integer (hid_t), intent(in) :: loc_id
         !!  Location ID of parent object which contains dataset
     character (*), intent(in) :: name
         !!  Dataset name
     integer (INTSIZE), intent(out), dimension(:), optional :: dims
-        !*  On exit, contains
+        !* Dataset extents on success; -1 on failure or beyond the dataset rank.
     integer, intent(out), optional :: ndims
-        !*  If present, contains number of dimensions on exit.
+        !* Dataset rank on success (zero for a scalar); -1 on failure.
     integer, intent(out), optional :: status
         !!  Status flag
 
@@ -286,73 +287,71 @@ subroutine hdf5_dims_int64 (loc_id, name, dims, ndims, status)
     integer (hid_t) :: dspace_id, dset_id
     integer :: lstatus, rnk, lstatus_ignore
 
+    if (present(dims)) dims = -1
     if (present(ndims)) ndims = -1
 
     call h5dopen_f (loc_id, name, dset_id, lstatus)
-    if (lstatus /= STATUS_OK) goto 20
+    if (lstatus /= STATUS_OK) goto 30
 
     call h5dget_space_f (dset_id, dspace_id, lstatus)
-    if (lstatus /= STATUS_OK) goto 10
+    if (lstatus /= STATUS_OK) goto 20
 
     ! retrieve array rank
     call h5sget_simple_extent_ndims_f (dspace_id, rnk, lstatus)
     if (lstatus /= STATUS_OK) goto 10
 
-    if (present(ndims)) ndims = rnk
-    if (.not. present(dims)) goto 10
+    if (present(dims)) then
+        if (rnk > size(dims)) then
+            lstatus = STATUS_FAILURE
+            goto 10
+        end if
 
-    ! make sure that stored array has the same rank as array into which it
-    ! should be read
-    if (rnk > size(dims)) then
-        lstatus = STATUS_FAILURE
-        goto 10
-    end if
-
-    allocate (ldims(rnk), maxdims(rnk))
-
-    call h5sget_simple_extent_dims_f (dspace_id, ldims, maxdims, lstatus)
-    ! above routine returns the rank of data space on successful exit and -1 otherwise
-    if (lstatus /= rnk) then
-        goto 10
-        ldims(:) = -1
-        lstatus = STATUS_FAILURE
+        if (rnk > 0) then
+            allocate (ldims(rnk), maxdims(rnk))
+            call h5sget_simple_extent_dims_f (dspace_id, ldims, maxdims, lstatus)
+            ! This routine returns the rank on success, not STATUS_OK.
+            if (lstatus /= rnk) then
+                lstatus = STATUS_FAILURE
+                goto 10
+            end if
+            dims(1:rnk) = int(ldims, INTSIZE)
+        end if
     end if
 
     lstatus = STATUS_OK
+    if (present(ndims)) ndims = rnk
 
 10  call h5sclose_f (dspace_id, lstatus_ignore)
 
 20  call h5dclose_f (dset_id, lstatus_ignore)
 
-    if (present(dims)) then
-        dims = -1
-        if (size(dims) >= rnk) then
-            dims(1:rnk) = int(ldims(1:rnk), INTSIZE)
-        end if
-    end if
-
+30  continue
     if (present(status)) status = lstatus
 
 end subroutine
 
 subroutine hdf5_dims_int32 (loc_id, name, dims, ndims, status)
+    !* Query dimensions with the same failure sentinels as the int64 overload.
     integer, parameter :: INTSIZE = int32
     integer (hid_t), intent(in) :: loc_id
         !*  Location ID of parent object which contains dataset
     character (*), intent(in) :: name
         !*  Dataset name
     integer (INTSIZE), intent(out), dimension(:) :: dims
-        !*  On exit, contains
+        !* Dataset extents on success; -1 on failure or beyond the dataset rank.
     integer, intent(out), optional :: ndims
-        !*  If present, contains number of dimensions on exit.
+        !* Dataset rank on success (zero for a scalar); -1 on failure.
     integer, intent(out), optional :: status
         !*  Status flag
 
     integer (int64), dimension(:), allocatable :: ldims
+    integer :: lstatus
 
+    dims = -1
     allocate (ldims(size(dims)))
-    call hdf5_dims (loc_id, name, ldims, ndims, status)
-    dims = int(ldims, INTSIZE)
+    call hdf5_dims (loc_id, name, ldims, ndims, lstatus)
+    if (lstatus == STATUS_OK) dims = int(ldims, INTSIZE)
+    if (present(status)) status = lstatus
 
 end subroutine
 
@@ -501,7 +500,7 @@ subroutine hdf5_store_cptr (loc_id, name, ptr, dims, dtype_file_id, &
     if (present(deflate)) ldeflate = ldeflate .and. deflate
 
     call h5screate_simple_f (rnk, ldims, dspace_id, lstatus)
-    if (lstatus /= STATUS_OK) goto 20
+    if (lstatus /= STATUS_OK) goto 30
 
     if (ldeflate) then
         ! compute chunk size: store stuff in column-major order; store complete
@@ -510,6 +509,7 @@ subroutine hdf5_store_cptr (loc_id, name, ptr, dims, dtype_file_id, &
 
         ! Create dataset property to deflate data (property of dataset creation)
         call h5pcreate_f(H5P_DATASET_CREATE_F, dprop_id, lstatus)
+        if (lstatus /= STATUS_OK) goto 20
         ! set deflate algorithm to max. compression
         call h5pset_deflate_f (dprop_id, GZIP_DEFAULT_LEVEL, lstatus)
         if (lstatus /= STATUS_OK) goto 5
@@ -551,6 +551,7 @@ subroutine hdf5_store_cptr (loc_id, name, ptr, dims, dtype_file_id, &
 
 20  call h5sclose_f (dspace_id, status_ignore)
 
+30  continue
     if (present(status)) status = lstatus
 end subroutine
 
@@ -724,7 +725,7 @@ subroutine hdf5_store_1d_char (loc_id, name, val, deflate, status)
     integer, dimension(NDIM) :: shp
 
     type (c_ptr) :: ptr
-    integer :: ssize, lstatus
+    integer :: ssize, lstatus, status_ignore
 
     integer (hid_t) :: dtype_file_id, dtype_native_id
     integer (size_t) :: char_len
@@ -733,15 +734,9 @@ subroutine hdf5_store_1d_char (loc_id, name, val, deflate, status)
 
     ! Create type for this specific string length
     call H5Tcopy_f(H5T_FORTRAN_S1, dtype_file_id, lstatus)
-    if (lstatus /= 0) then
-        if (present(status)) status = lstatus
-        goto 100
-    end if
+    if (lstatus /= STATUS_OK) goto 100
     call H5Tset_size_f(dtype_file_id, char_len, lstatus)
-    if (lstatus /= 0) then
-        if (present(status)) status = lstatus
-        goto 100
-    end if
+    if (lstatus /= STATUS_OK) goto 90
     ! Use same data type ID for both file and memory
     dtype_native_id = dtype_file_id
 
@@ -752,10 +747,11 @@ subroutine hdf5_store_1d_char (loc_id, name, val, deflate, status)
     shp = shape(val)
 
     call hdf5_store (loc_id, name, ptr, shp, dtype_file_id, &
-        dtype_native_id, ssize, deflate, status)
+        dtype_native_id, ssize, deflate, lstatus)
 
+90  call H5Tclose_f(dtype_file_id, status_ignore)
 100 continue
-    call H5Tclose_f(dtype_file_id, lstatus)
+    if (present(status)) status = lstatus
 end subroutine
 
 ! ------------------------------------------------------------------------------
@@ -1180,10 +1176,10 @@ subroutine hdf5_load_cptr (loc_id, name, ptr, dims, dtype_native_id, &
     if ((.not. exists) .and. lignore_missing) goto 30
 
     call h5dopen_f (loc_id, name, dset_id, lstatus)
-    if (lstatus /= STATUS_OK) goto 20
+    if (lstatus /= STATUS_OK) goto 30
 
     call h5dget_space_f (dset_id, dspace_id, lstatus)
-    if (lstatus /= STATUS_OK) goto 10
+    if (lstatus /= STATUS_OK) goto 20
 
     ! retrieve array rank
     call h5sget_simple_extent_ndims_f (dspace_id, rnk, lstatus)
@@ -1201,7 +1197,10 @@ subroutine hdf5_load_cptr (loc_id, name, ptr, dims, dtype_native_id, &
         allocate (ldims(rnk), maxdims(rnk))
         call h5sget_simple_extent_dims_f (dspace_id, ldims, maxdims, lstatus)
         ! above routine returns the rank of data space on successful exit and -1 otherwise
-        if (lstatus /= rnk) goto 10
+        if (lstatus /= rnk) then
+            lstatus = STATUS_FAILURE
+            goto 10
+        end if
 
         ! check the the dimensions of array in memory are identical to those
         ! stored in file. Not sure if larger arrays could be permitted, since
