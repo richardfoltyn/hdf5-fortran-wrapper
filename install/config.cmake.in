@@ -1,45 +1,39 @@
-
 @PACKAGE_INIT@
 
-set(PACKAGE_VERSION @H5FW_VERSION@)
-set(PACKAGE_NAMESPACE @H5FW_INSTALL_NAMESPACE@)
-set(PACKAGE_NAME @LIBRARY_NAME@)
+include(CMakeFindDependencyMacro)
+find_dependency(HDF5 COMPONENTS Fortran)
 
-set_and_check(PACKAGE_CONFIG_PATH "@PACKAGE_H5FW_INSTALL_CONFIG_PATH@")
+set(@LIBRARY_NAME@_VERSION "@H5FW_VERSION@")
+if (NOT TARGET @H5FW_INSTALL_NAMESPACE@::@LIBRARY_NAME@)
+    include("${CMAKE_CURRENT_LIST_DIR}/@TARGETS_FILE@")
+endif ()
 
-set(PACKAGE_TARGET ${PACKAGE_NAMESPACE}::${PACKAGE_NAME})
+# Retain the legacy variable without caching installation-specific paths.
+# Linking @H5FW_INSTALL_NAMESPACE@::@LIBRARY_NAME@ supplies these automatically.
+get_target_property(@LIBRARY_NAME@_INCLUDE_DIRS
+    @H5FW_INSTALL_NAMESPACE@::@LIBRARY_NAME@ INTERFACE_INCLUDE_DIRECTORIES)
 
-if(NOT TARGET ${PACKAGE_TARGET})
-    include("${PACKAGE_CONFIG_PATH}/${PACKAGE_NAME}Targets.cmake")
-endif()
-
-# Do this only for compatibility if downstream uses the
-# @LIBRARY_NAME@_INCLUDE_DIRS variable. This variable is not needed if
-# the upstream include directories are added via
-# target_include_directories(target INTERFACE
-#   @H5FW_INSTALL_NAMESPACE@::@LIBRARY_NAME@)
-# statement.
-get_target_property(_include ${PACKAGE_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
-set(${PACKAGE_NAME}_INCLUDE_DIRS "${_include}" 
-    CACHE STRING "${PACKAGE_NAME} include directory"
-    FORCE
+# Recheck module and link compatibility on each configure, including after
+# the selected installation or toolchain has changed.
+try_compile(_h5fw_compiler_compatible
+    "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/h5fw-compiler-check"
+    "${CMAKE_CURRENT_LIST_DIR}/compiler_test.f90"
+    LINK_LIBRARIES @H5FW_INSTALL_NAMESPACE@::@LIBRARY_NAME@ hdf5::hdf5_fortran
+    OUTPUT_VARIABLE _h5fw_compiler_output
 )
+set(@LIBRARY_NAME@_FOUND "${_h5fw_compiler_compatible}")
+unset(_h5fw_compiler_compatible CACHE)
+unset(@LIBRARY_NAME@_NOT_FOUND_MESSAGE)
+if (NOT @LIBRARY_NAME@_FOUND)
+    set(@LIBRARY_NAME@_NOT_FOUND_MESSAGE
+        "The installed @LIBRARY_NAME@ library is incompatible with the current Fortran compiler or target architecture:\n${_h5fw_compiler_output}")
+endif ()
+unset(_h5fw_compiler_compatible)
+unset(_h5fw_compiler_output)
 
-if(NOT ${PACKAGE_NAME}_FOUND)
-    # Try compiling to see whether the library and the target architecture match
-    # Note: _result is set to TRUE/FALSE
-    try_compile(_result
-        "${CMAKE_CURRENT_BINARY_DIR}"
-        "${CMAKE_CURRENT_LIST_DIR}/compiler_test.f90"
-        LINK_LIBRARIES ${PACKAGE_TARGET}
-    )
+check_required_components(@LIBRARY_NAME@)
 
-    set(${PACKAGE_NAME}_FOUND ${_result} CACHE BOOL "" FORCE)
-
-endif()
-
-if(${PACKAGE_NAME}_FOUND AND NOT ${PACKAGE_NAME}_FIND_QUIETLY)
-    string(TOUPPER "${PACKAGE_NAME}" _name)
-    message(STATUS "Found ${_name} ${PACKAGE_VERSION}: ${${PACKAGE_NAME}_INCLUDE_DIRS}")
-endif()
+if (@LIBRARY_NAME@_FOUND AND NOT @LIBRARY_NAME@_FIND_QUIETLY)
+    message(STATUS "Found @LIBRARY_NAME@ ${@LIBRARY_NAME@_VERSION}: ${@LIBRARY_NAME@_INCLUDE_DIRS}")
+endif ()
 

@@ -57,7 +57,7 @@ call hdf5_store (loc_id, "data_name", arr, deflate=.true., status=status)
 
 ### Dependencies
 
-The library requires the HDF5 development package(s) to be installed. 
+The library requires CMake 3.19 or newer and the HDF5 development package(s).
 For example, on Fedora these can be obtained with
 ```bash
 sudo dnf install hdf5 hdf5-devel
@@ -99,21 +99,21 @@ On Fedora the GNU-16 CMake package is installed under
 To integrate the library in your own CMake project, augment your `CMakeLists.txt`
 as follows. See also the minimal client in `tests/client.f90`.
 ```CMake
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.19)
 
 project(H5FW_client LANGUAGES C Fortran)
-
-# HDF5 library required for linking
-find_package(HDF5 REQUIRED COMPONENTS Fortran)
 
 # Locate the library. Configure with -DCMAKE_PREFIX_PATH="$HOME/.local"
 # if it was installed under the prefix shown above.
 find_package(h5fw REQUIRED)
 
 add_executable(client client.f90)
-target_link_libraries(client h5fw::h5fw)
+target_link_libraries(client PRIVATE h5fw::h5fw)
 
 ```
+
+The package discovers its HDF5 dependency automatically. When embedding the
+repository with `add_subdirectory()`, link the same `h5fw::h5fw` target.
 
 ## Regression tests
 
